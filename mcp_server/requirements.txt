@@ -1,0 +1,8 @@
+anthropic-modelcontextprotocol==0.1.1
+mcp==1.1.2
+httpx==0.28.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+PyJWT==2.10.1
+cryptography==43.0.3

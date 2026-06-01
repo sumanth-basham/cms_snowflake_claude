@@ -1,0 +1,348 @@
+name: cms_semantic_model
+description: >
+  Semantic model for CMS (Centers for Medicare & Medicaid Services) data.
+  Covers Medicare providers, fee-for-service claims, Part-D drug utilization,
+  and quality star ratings. Use this model to answer natural-language questions
+  about provider performance, spending patterns, and drug costs.
+
+tables:
+  - name: PROVIDERS
+    description: Medicare-enrolled healthcare providers (hospitals and physicians).
+    base_table:
+      database: CMS_DB
+      schema: ANALYTICS
+      table: PROVIDERS
+    primary_key:
+      columns:
+        - PROVIDER_ID
+    dimensions:
+      - name: provider_id
+        synonyms: [npi, provider code]
+        description: Unique identifier for the provider.
+        expr: PROVIDER_ID
+        data_type: VARCHAR
+        unique: true
+        sample_values: ["P001", "P002", "P003"]
+
+      - name: provider_name
+        synonyms: [name, facility name, hospital name, clinic name]
+        description: Full name of the provider or facility.
+        expr: PROVIDER_NAME
+        data_type: VARCHAR
+        sample_values: ["General Hospital NYC", "Riverside Clinic"]
+
+      - name: provider_type
+        synonyms: [type, facility type]
+        description: Category of provider (e.g., Physician, Hospital).
+        expr: PROVIDER_TYPE
+        data_type: VARCHAR
+        sample_values: ["Physician", "Hospital"]
+
+      - name: specialty
+        synonyms: [medical specialty, physician specialty]
+        description: Medical specialty of the provider.
+        expr: SPECIALTY
+        data_type: VARCHAR
+        sample_values: ["Cardiology", "Orthopedics", "Oncology"]
+
+      - name: state
+        synonyms: [provider state, location state]
+        description: Two-letter state code where the provider is located.
+        expr: STATE
+        data_type: VARCHAR
+        sample_values: ["NY", "CA", "TX"]
+
+      - name: city
+        synonyms: [provider city, location]
+        description: City where the provider is located.
+        expr: CITY
+        data_type: VARCHAR
+
+    time_dimensions:
+      - name: medicare_enrollment_date
+        synonyms: [enrollment date, start date]
+        description: Date the provider enrolled in Medicare.
+        expr: MEDICARE_ENROLLMENT
+        data_type: DATE
+
+  - name: CLAIMS
+    description: >
+      CMS Medicare fee-for-service claims. Each row represents one claim
+      submitted by a provider for a patient encounter.
+    base_table:
+      database: CMS_DB
+      schema: ANALYTICS
+      table: CLAIMS
+    primary_key:
+      columns:
+        - CLAIM_ID
+    dimensions:
+      - name: claim_id
+        description: Unique claim identifier.
+        expr: CLAIM_ID
+        data_type: VARCHAR
+        unique: true
+
+      - name: claim_type
+        synonyms: [service type, care setting]
+        description: >
+          Type of Medicare claim: Inpatient, Outpatient, or Part-D.
+        expr: CLAIM_TYPE
+        data_type: VARCHAR
+        sample_values: ["Inpatient", "Outpatient", "Part-D"]
+
+      - name: diagnosis_code
+        synonyms: [ICD-10, diagnosis, dx code]
+        description: Primary ICD-10 diagnosis code for the claim.
+        expr: DIAGNOSIS_CODE
+        data_type: VARCHAR
+
+      - name: procedure_code
+        synonyms: [CPT code, HCPCS, procedure]
+        description: Primary procedure or service code (CPT/HCPCS).
+        expr: PROCEDURE_CODE
+        data_type: VARCHAR
+
+      - name: patient_age_group
+        synonyms: [age group, patient age]
+        description: Age bracket of the Medicare beneficiary.
+        expr: PATIENT_AGE_GROUP
+        data_type: VARCHAR
+        sample_values: ["55-64", "65-74", "75-84", "85+"]
+
+      - name: patient_state
+        synonyms: [beneficiary state, patient location]
+        description: State where the patient resides.
+        expr: PATIENT_STATE
+        data_type: VARCHAR
+
+    measures:
+      - name: total_billed_amount
+        synonyms: [billed, charges, gross charges]
+        description: Total amount billed by the provider.
+        expr: SUM(BILLED_AMOUNT)
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: total_allowed_amount
+        synonyms: [allowed, approved amount, Medicare allowed]
+        description: Total amount approved by Medicare.
+        expr: SUM(ALLOWED_AMOUNT)
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: total_paid_amount
+        synonyms: [paid, reimbursed, Medicare payment]
+        description: Total amount paid by Medicare to the provider.
+        expr: SUM(PAID_AMOUNT)
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: claim_count
+        synonyms: [number of claims, claims volume]
+        description: Number of claims submitted.
+        expr: COUNT(CLAIM_ID)
+        data_type: NUMBER
+        default_aggregation: count
+
+      - name: avg_paid_per_claim
+        synonyms: [average payment, average reimbursement]
+        description: Average Medicare payment per claim.
+        expr: AVG(PAID_AMOUNT)
+        data_type: NUMBER
+        default_aggregation: mean
+
+    time_dimensions:
+      - name: claim_date
+        synonyms: [date of claim, claim submission date]
+        description: Date the claim was submitted.
+        expr: CLAIM_DATE
+        data_type: DATE
+
+      - name: service_date
+        synonyms: [date of service, DOS]
+        description: Date the medical service was provided.
+        expr: SERVICE_DATE
+        data_type: DATE
+
+  - name: DRUG_UTILIZATION
+    description: >
+      Part-D drug utilization data by provider. Shows prescription volumes,
+      beneficiary counts, and total drug costs by drug and provider per year.
+    base_table:
+      database: CMS_DB
+      schema: ANALYTICS
+      table: DRUG_UTILIZATION
+    dimensions:
+      - name: drug_name
+        synonyms: [brand name, medication, drug brand]
+        description: Brand name of the prescription drug.
+        expr: DRUG_NAME
+        data_type: VARCHAR
+        sample_values: ["Eliquis", "Keytruda", "Jardiance"]
+
+      - name: generic_name
+        synonyms: [generic, active ingredient, INN]
+        description: Generic (INN) name of the drug.
+        expr: GENERIC_NAME
+        data_type: VARCHAR
+
+      - name: claim_year
+        synonyms: [year, prescription year]
+        description: Calendar year for which utilization is reported.
+        expr: CLAIM_YEAR
+        data_type: NUMBER
+        sample_values: [2022, 2023, 2024]
+
+    measures:
+      - name: total_claims
+        synonyms: [prescription count, script count]
+        description: Total number of prescription claims.
+        expr: SUM(CLAIM_COUNT)
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: total_beneficiaries
+        synonyms: [patient count, beneficiary count]
+        description: Number of unique beneficiaries prescribed the drug.
+        expr: SUM(BENEFICIARY_COUNT)
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: total_drug_cost
+        synonyms: [drug spend, drug cost, total cost]
+        description: Total Medicare Part-D spending on the drug.
+        expr: SUM(TOTAL_DRUG_COST)
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: avg_cost_per_claim
+        synonyms: [cost per prescription, average drug cost]
+        description: Average cost per prescription claim.
+        expr: DIV0(SUM(TOTAL_DRUG_COST), SUM(CLAIM_COUNT))
+        data_type: NUMBER
+        default_aggregation: mean
+
+  - name: QUALITY_MEASURES
+    description: >
+      CMS quality star ratings for providers. Compares each provider's
+      performance rate against the national average for various care measures.
+    base_table:
+      database: CMS_DB
+      schema: ANALYTICS
+      table: QUALITY_MEASURES
+    dimensions:
+      - name: measure_id
+        description: CMS quality measure identifier.
+        expr: MEASURE_ID
+        data_type: VARCHAR
+
+      - name: measure_name
+        synonyms: [quality measure, metric name]
+        description: Full descriptive name of the quality measure.
+        expr: MEASURE_NAME
+        data_type: VARCHAR
+
+      - name: measure_domain
+        synonyms: [care domain, category]
+        description: Domain / category the measure belongs to.
+        expr: MEASURE_DOMAIN
+        data_type: VARCHAR
+        sample_values: ["Preventive Care", "Chronic Care", "Patient Safety", "Oncology"]
+
+      - name: star_rating
+        synonyms: [stars, rating, CMS stars]
+        description: CMS star rating (1–5) for the provider on this measure.
+        expr: STAR_RATING
+        data_type: NUMBER
+        sample_values: [1, 2, 3, 4, 5]
+
+      - name: reporting_year
+        synonyms: [year, measurement year]
+        description: Year for which the performance rate was reported.
+        expr: REPORTING_YEAR
+        data_type: NUMBER
+
+    measures:
+      - name: avg_performance_rate
+        synonyms: [performance, score, rate]
+        description: Average performance rate (0–100) across providers/measures.
+        expr: AVG(PERFORMANCE_RATE)
+        data_type: NUMBER
+        default_aggregation: mean
+
+      - name: avg_national_average
+        synonyms: [national benchmark, benchmark]
+        description: National average performance rate for the measure.
+        expr: AVG(NATIONAL_AVERAGE)
+        data_type: NUMBER
+        default_aggregation: mean
+
+relationships:
+  - name: claims_to_providers
+    left_table: CLAIMS
+    right_table: PROVIDERS
+    relationship_columns:
+      - left_column: PROVIDER_ID
+        right_column: PROVIDER_ID
+    join_type: MANY_TO_ONE
+    relationship_type: MANY_TO_ONE
+
+  - name: drug_utilization_to_providers
+    left_table: DRUG_UTILIZATION
+    right_table: PROVIDERS
+    relationship_columns:
+      - left_column: PROVIDER_ID
+        right_column: PROVIDER_ID
+    join_type: MANY_TO_ONE
+    relationship_type: MANY_TO_ONE
+
+  - name: quality_measures_to_providers
+    left_table: QUALITY_MEASURES
+    right_table: PROVIDERS
+    relationship_columns:
+      - left_column: PROVIDER_ID
+        right_column: PROVIDER_ID
+    join_type: MANY_TO_ONE
+    relationship_type: MANY_TO_ONE
+
+verified_queries:
+  - name: top_providers_by_paid_amount
+    question: Which providers received the highest total Medicare payments?
+    sql: |
+      SELECT
+          p.PROVIDER_NAME,
+          p.STATE,
+          p.SPECIALTY,
+          SUM(c.PAID_AMOUNT) AS TOTAL_PAID
+      FROM CMS_DB.ANALYTICS.CLAIMS  c
+      JOIN CMS_DB.ANALYTICS.PROVIDERS p ON c.PROVIDER_ID = p.PROVIDER_ID
+      GROUP BY 1, 2, 3
+      ORDER BY TOTAL_PAID DESC
+      LIMIT 10;
+
+  - name: drug_cost_by_drug
+    question: What is the total drug cost for each drug?
+    sql: |
+      SELECT
+          DRUG_NAME,
+          GENERIC_NAME,
+          SUM(TOTAL_DRUG_COST) AS TOTAL_COST,
+          SUM(CLAIM_COUNT)     AS TOTAL_CLAIMS
+      FROM CMS_DB.ANALYTICS.DRUG_UTILIZATION
+      GROUP BY 1, 2
+      ORDER BY TOTAL_COST DESC;
+
+  - name: quality_above_national_average
+    question: Which providers perform above the national average on quality measures?
+    sql: |
+      SELECT
+          p.PROVIDER_NAME,
+          qm.MEASURE_NAME,
+          qm.PERFORMANCE_RATE,
+          qm.NATIONAL_AVERAGE,
+          qm.STAR_RATING
+      FROM CMS_DB.ANALYTICS.QUALITY_MEASURES qm
+      JOIN CMS_DB.ANALYTICS.PROVIDERS        p  ON qm.PROVIDER_ID = p.PROVIDER_ID
+      WHERE qm.PERFORMANCE_RATE > qm.NATIONAL_AVERAGE
+      ORDER BY (qm.PERFORMANCE_RATE - qm.NATIONAL_AVERAGE) DESC;
