@@ -48,16 +48,16 @@ class SnowflakeClient:
             token = self.settings.snowflake_oauth_token
             if not token:
                 raise SnowflakeError("SNOWFLAKE_OAUTH_TOKEN is required for oauth authentication.")
-            headers["Authorization"] = f"******"
+            headers["Authorization"] = "Bearer " + token
             return headers
         if auth_method == "pat":
             token = self.settings.snowflake_pat_token
             if not token:
                 raise SnowflakeError("SNOWFLAKE_PAT_TOKEN is required for pat authentication.")
-            headers["Authorization"] = f"******"
+            headers["Authorization"] = "Bearer " + token
             return headers
         if auth_method == "key_pair":
-            headers["Authorization"] = f"******"
+            headers["Authorization"] = "Bearer " + self._build_key_pair_jwt()
             headers["X-Snowflake-Authorization-Token-Type"] = "KEYPAIR_JWT"
             return headers
         raise SnowflakeError(f"Unsupported SNOWFLAKE_AUTH_METHOD: {self.settings.snowflake_auth_method}")
