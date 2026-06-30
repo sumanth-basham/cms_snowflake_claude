@@ -1,0 +1,201 @@
+name: cms_semantic_model
+description: >
+  Semantic model for CMS analytics in Snowflake Cortex Analyst.
+  It covers provider performance, claims, drug utilization, and quality measures.
+
+tables:
+  - name: PROVIDERS
+    description: Medicare-enrolled healthcare providers.
+    base_table:
+      database: CMS_DB
+      schema: ANALYTICS
+      table: PROVIDERS
+    primary_key:
+      columns: [PROVIDER_ID]
+    dimensions:
+      - name: provider_id
+        expr: PROVIDER_ID
+        data_type: VARCHAR
+        synonyms: [npi, provider code]
+      - name: provider_name
+        expr: PROVIDER_NAME
+        data_type: VARCHAR
+        synonyms: [hospital name, clinic name, provider]
+      - name: provider_type
+        expr: PROVIDER_TYPE
+        data_type: VARCHAR
+      - name: specialty
+        expr: SPECIALTY
+        data_type: VARCHAR
+      - name: state
+        expr: STATE
+        data_type: VARCHAR
+      - name: city
+        expr: CITY
+        data_type: VARCHAR
+    time_dimensions:
+      - name: medicare_enrollment_date
+        expr: MEDICARE_ENROLLMENT
+        data_type: DATE
+
+  - name: CLAIMS
+    description: CMS Medicare fee-for-service claims.
+    base_table:
+      database: CMS_DB
+      schema: ANALYTICS
+      table: CLAIMS
+    primary_key:
+      columns: [CLAIM_ID]
+    dimensions:
+      - name: claim_id
+        expr: CLAIM_ID
+        data_type: VARCHAR
+      - name: claim_type
+        expr: CLAIM_TYPE
+        data_type: VARCHAR
+      - name: diagnosis_code
+        expr: DIAGNOSIS_CODE
+        data_type: VARCHAR
+      - name: procedure_code
+        expr: PROCEDURE_CODE
+        data_type: VARCHAR
+      - name: patient_age_group
+        expr: PATIENT_AGE_GROUP
+        data_type: VARCHAR
+      - name: patient_state
+        expr: PATIENT_STATE
+        data_type: VARCHAR
+    measures:
+      - name: total_billed_amount
+        expr: SUM(BILLED_AMOUNT)
+        data_type: NUMBER
+        default_aggregation: sum
+      - name: total_allowed_amount
+        expr: SUM(ALLOWED_AMOUNT)
+        data_type: NUMBER
+        default_aggregation: sum
+      - name: total_paid_amount
+        expr: SUM(PAID_AMOUNT)
+        data_type: NUMBER
+        default_aggregation: sum
+      - name: claim_count
+        expr: COUNT(CLAIM_ID)
+        data_type: NUMBER
+        default_aggregation: count
+      - name: avg_paid_per_claim
+        expr: AVG(PAID_AMOUNT)
+        data_type: NUMBER
+        default_aggregation: avg
+    time_dimensions:
+      - name: claim_date
+        expr: CLAIM_DATE
+        data_type: DATE
+      - name: service_date
+        expr: SERVICE_DATE
+        data_type: DATE
+
+  - name: DRUG_UTILIZATION
+    description: CMS Part-D drug utilization by provider.
+    base_table:
+      database: CMS_DB
+      schema: ANALYTICS
+      table: DRUG_UTILIZATION
+    dimensions:
+      - name: drug_name
+        expr: DRUG_NAME
+        data_type: VARCHAR
+      - name: generic_name
+        expr: GENERIC_NAME
+        data_type: VARCHAR
+      - name: claim_year
+        expr: CLAIM_YEAR
+        data_type: NUMBER
+    measures:
+      - name: total_claims
+        expr: SUM(CLAIM_COUNT)
+        data_type: NUMBER
+        default_aggregation: sum
+      - name: total_beneficiaries
+        expr: SUM(BENEFICIARY_COUNT)
+        data_type: NUMBER
+        default_aggregation: sum
+      - name: total_drug_cost
+        expr: SUM(TOTAL_DRUG_COST)
+        data_type: NUMBER
+        default_aggregation: sum
+
+  - name: QUALITY_MEASURES
+    description: CMS quality star ratings and benchmarks.
+    base_table:
+      database: CMS_DB
+      schema: ANALYTICS
+      table: QUALITY_MEASURES
+    dimensions:
+      - name: measure_id
+        expr: MEASURE_ID
+        data_type: VARCHAR
+      - name: measure_name
+        expr: MEASURE_NAME
+        data_type: VARCHAR
+      - name: measure_domain
+        expr: MEASURE_DOMAIN
+        data_type: VARCHAR
+      - name: star_rating
+        expr: STAR_RATING
+        data_type: NUMBER
+      - name: reporting_year
+        expr: REPORTING_YEAR
+        data_type: NUMBER
+    measures:
+      - name: avg_performance_rate
+        expr: AVG(PERFORMANCE_RATE)
+        data_type: NUMBER
+        default_aggregation: avg
+      - name: avg_national_average
+        expr: AVG(NATIONAL_AVERAGE)
+        data_type: NUMBER
+        default_aggregation: avg
+
+relationships:
+  - name: claims_to_providers
+    left_table: CLAIMS
+    right_table: PROVIDERS
+    relationship_columns:
+      - left_column: PROVIDER_ID
+        right_column: PROVIDER_ID
+    join_type: MANY_TO_ONE
+    relationship_type: MANY_TO_ONE
+  - name: drug_utilization_to_providers
+    left_table: DRUG_UTILIZATION
+    right_table: PROVIDERS
+    relationship_columns:
+      - left_column: PROVIDER_ID
+        right_column: PROVIDER_ID
+    join_type: MANY_TO_ONE
+    relationship_type: MANY_TO_ONE
+  - name: quality_measures_to_providers
+    left_table: QUALITY_MEASURES
+    right_table: PROVIDERS
+    relationship_columns:
+      - left_column: PROVIDER_ID
+        right_column: PROVIDER_ID
+    join_type: MANY_TO_ONE
+    relationship_type: MANY_TO_ONE
+
+verified_queries:
+  - name: top_providers_by_paid_amount
+    question: Which providers received the highest total Medicare payments?
+    sql: |
+      SELECT p.PROVIDER_NAME, p.STATE, p.SPECIALTY, SUM(c.PAID_AMOUNT) AS TOTAL_PAID
+      FROM CMS_DB.ANALYTICS.CLAIMS c
+      JOIN CMS_DB.ANALYTICS.PROVIDERS p ON c.PROVIDER_ID = p.PROVIDER_ID
+      GROUP BY 1, 2, 3
+      ORDER BY TOTAL_PAID DESC
+      LIMIT 10;
+  - name: drug_cost_by_drug
+    question: What is the total drug cost for each drug?
+    sql: |
+      SELECT DRUG_NAME, GENERIC_NAME, SUM(TOTAL_DRUG_COST) AS TOTAL_COST, SUM(CLAIM_COUNT) AS TOTAL_CLAIMS
+      FROM CMS_DB.ANALYTICS.DRUG_UTILIZATION
+      GROUP BY 1, 2
+      ORDER BY TOTAL_COST DESC;
