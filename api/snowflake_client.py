@@ -71,7 +71,7 @@ class SnowflakeClient:
         password = self.settings.snowflake_private_key_passphrase
         private_key = serialization.load_pem_private_key(
             private_key_bytes,
-            ****** if password else None,
+            password.encode() if password else None,
         )
         public_key = private_key.public_key().public_bytes(
             encoding=serialization.Encoding.DER,
