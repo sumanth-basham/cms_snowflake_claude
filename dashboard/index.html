@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CMS Snowflake AI Agent</title>
+    <link rel="stylesheet" href="./assets/style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>CMS Snowflake AI Agent</h1>
+        <p>Ask Snowflake Cortex Analyst natural-language questions and preview dashboard-ready results locally.</p>
+      </header>
+
+      <section class="panel controls">
+        <label for="question"><strong>Question</strong></label>
+        <textarea id="question" placeholder="Example: Which providers received the highest Medicare payments?"></textarea>
+        <label><input id="include-summary" type="checkbox" checked /> Include a local executive summary</label>
+        <div class="actions">
+          <button id="ask-button">Ask agent</button>
+          <button id="dashboard-button" class="secondary">Build dashboard preview</button>
+        </div>
+        <p class="small-text">The dashboard talks to the FastAPI backend at <code id="api-base"></code>.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Agent summary</h2>
+        <div id="summary">Run a question to see the agent response.</div>
+      </section>
+
+      <section class="panel">
+        <h2>Generated SQL</h2>
+        <pre id="sql">No SQL generated yet.</pre>
+      </section>
+
+      <section class="panel">
+        <h2>Chart preview</h2>
+        <div id="chart-root"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Result table</h2>
+        <div id="table-root"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Dashboard code payload</h2>
+        <pre id="dashboard-code">No dashboard payload yet.</pre>
+      </section>
+    </main>
+
+    <script type="module">
+      import { renderAgentChart } from './assets/charts.js';
+
+      const params = new URLSearchParams(window.location.search);
+      const apiBase = params.get('apiBase') || `${window.location.protocol}//${window.location.hostname}:8000`;
+      document.getElementById('api-base').textContent = apiBase;
+
+      const questionElement = document.getElementById('question');
+      const summaryElement = document.getElementById('summary');
+      const sqlElement = document.getElementById('sql');
+      const tableRoot = document.getElementById('table-root');
+      const chartRoot = document.getElementById('chart-root');
+      const dashboardCode = document.getElementById('dashboard-code');
+
+      function renderTable(columns, rows) {
+        if (!columns.length || !rows.length) {
+          tableRoot.innerHTML = '<p>No tabular rows returned.</p>';
+          return;
+        }
+        const header = columns.map((column) => `<th>${column}</th>`).join('');
+        const body = rows.map((row) => `<tr>${row.map((value) => `<td>${value ?? ''}</td>`).join('')}</tr>`).join('');
+        tableRoot.innerHTML = `<table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`;
+      }
+
+      async function post(path, body) {
+        const response = await fetch(`${apiBase}${path}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.detail || JSON.stringify(payload));
+        }
+        return payload;
+      }
+
+      async function run(mode) {
+        const question = questionElement.value.trim();
+        if (!question) {
+          summaryElement.textContent = 'Enter a question first.';
+          return;
+        }
+        summaryElement.textContent = 'Loading…';
+        sqlElement.textContent = 'Loading…';
+        dashboardCode.textContent = 'Waiting for response…';
+        try {
+          const payload = await post(
+            mode === 'dashboard' ? '/api/ask/dashboard' : '/api/ask',
+            {
+              question,
+              include_summary: document.getElementById('include-summary').checked,
+              conversation_history: [],
+            },
+          );
+          summaryElement.textContent = payload.summary || payload.interpretation || 'No summary returned.';
+          sqlElement.textContent = payload.sql || 'No SQL returned.';
+          renderTable(payload.columns || [], payload.data || []);
+          renderAgentChart(chartRoot, payload.dashboard_spec || payload);
+          dashboardCode.textContent = payload.dashboard_code || 'No dashboard code returned for this mode.';
+        } catch (error) {
+          summaryElement.textContent = error.message;
+          sqlElement.textContent = 'Request failed.';
+          tableRoot.innerHTML = '';
+          chartRoot.innerHTML = '';
+          dashboardCode.textContent = 'Request failed.';
+        }
+      }
+
+      document.getElementById('ask-button').addEventListener('click', () => run('ask'));
+      document.getElementById('dashboard-button').addEventListener('click', () => run('dashboard'));
+    </script>
+  </body>
+</html>
