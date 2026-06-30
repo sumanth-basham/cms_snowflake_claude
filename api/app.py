@@ -97,18 +97,13 @@ app = FastAPI(
     description="FastAPI bridge for Snowflake Cortex Analyst, Cortex Search, and a local CMS dashboard.",
 )
 
-
-@app.on_event("startup")
-def configure_cors() -> None:
-    settings = get_settings()
-    if not any(m.cls is CORSMiddleware for m in app.user_middleware):
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=settings.cors_origin_list,
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_settings().cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/api/health")

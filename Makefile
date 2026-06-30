@@ -6,12 +6,12 @@ PY := $(VENV)/bin/python
 .PHONY: setup run test
 
 setup:
-$(PYTHON) -m venv $(VENV)
-$(PIP) install --upgrade pip
-$(PIP) install -r requirements.txt
+	$(PYTHON) -m venv $(VENV)
+	$(PIP) install --upgrade pip
+	$(PIP) install -r requirements.txt
 
 run:
-$(PY) dashboard/serve.py
+	$(PY) dashboard/serve.py
 
 test:
-$(PY) -m pytest tests -q
+	$(PY) -m pytest tests -q
