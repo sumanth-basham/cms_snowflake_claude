@@ -200,8 +200,8 @@ class SnowflakeClient:
         if execute and result["sql"]:
             sql_response = self.execute_sql(result["sql"])
             result["columns"] = [
-                col.get("name", f"column_{idx}")
-                for idx, col in enumerate(sql_response.get("resultSetMetaData", {}).get("rowType", []))
+                col.get("name", f"column_{index}")
+                for index, col in enumerate(sql_response.get("resultSetMetaData", {}).get("rowType", []))
             ]
             result["data"] = sql_response.get("data", [])
         return result
