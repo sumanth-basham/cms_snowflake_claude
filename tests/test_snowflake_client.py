@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from api.app import Settings
 from api.snowflake_client import SnowflakeClient
 
@@ -16,8 +18,12 @@ def test_pat_headers_use_bearer_token() -> None:
     assert client._headers()["Authorization"].endswith("pat-token")
 
 
-def test_key_pair_headers_use_generated_jwt(monkeypatch) -> None:
+def test_key_pair_headers_use_generated_jwt(monkeypatch: pytest.MonkeyPatch) -> None:
     client = SnowflakeClient(Settings(snowflake_auth_method="key_pair", snowflake_private_key_path="dummy"))
     monkeypatch.setattr(client, "_build_key_pair_jwt", lambda: "jwt-token")
     assert client._headers()["Authorization"].startswith("Bearer ")
     assert client._headers()["Authorization"].endswith("jwt-token")
+
+
+def test_escape_like_literal_escapes_wildcards() -> None:
+    assert SnowflakeClient._escape_like_literal("100%_match\\name") == "100\\%\\_match\\\\name"

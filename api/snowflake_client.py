@@ -142,6 +142,15 @@ class SnowflakeClient:
             return False
         return ";" not in normalized
 
+    @staticmethod
+    def _escape_like_literal(value: str) -> str:
+        return (
+            value.replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+            .replace("'", "''")
+        )
+
     def cortex_analyst_message(
         self,
         question: str,
@@ -215,11 +224,13 @@ class SnowflakeClient:
             except SnowflakeError:
                 logger.info("Falling back to SQL search for query '%s'.", query)
 
-        escaped = query.replace("'", "''")
+        escaped = self._escape_like_literal(query)
         sql = (
             "SELECT PROVIDER_ID, PROVIDER_NAME, PROVIDER_TYPE, SPECIALTY, CITY, STATE "
             "FROM CMS_DB.ANALYTICS.PROVIDERS "
-            f"WHERE PROVIDER_NAME ILIKE '%{escaped}%' OR SPECIALTY ILIKE '%{escaped}%' OR CITY ILIKE '%{escaped}%' "
+            f"WHERE PROVIDER_NAME ILIKE '%{escaped}%' ESCAPE '\\' "
+            f"OR SPECIALTY ILIKE '%{escaped}%' ESCAPE '\\' "
+            f"OR CITY ILIKE '%{escaped}%' ESCAPE '\\' "
             f"ORDER BY PROVIDER_NAME LIMIT {int(limit)}"
         )
         response = self.execute_sql(sql)
